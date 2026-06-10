@@ -82,7 +82,7 @@
 <div class="head">
   <div style="display:flex;align-items:center;gap:10px;">
     <span class="tag">SEQ</span>
-    <span class="title">テクノシーケンサー<small>TECHNO SEQUENCER</small></span>
+    <span class="title">テクノシーケンサー<small>TECHNO SEQUENCER &nbsp;v1.2</small></span>
   </div>
   <div class="decks" id="decks">
     <div class="deck"><div class="dot"></div></div>
@@ -192,11 +192,35 @@ function kick(t,v){
   sub.start(t);sub.stop(t+0.42);
 }
 function snare(t,v){
-  const n=noiseSrc(),hp=ctx.createBiquadFilter();hp.type="highpass";hp.frequency.value=1400;
-  const g=vca(t,v*0.8,0.2);n.connect(hp);hp.connect(g);g.connect(masterGain);
-  const o=ctx.createOscillator();o.type="triangle";o.frequency.value=180;
-  const g2=vca(t,v*0.5,0.13);o.connect(g2);g2.connect(masterGain);
-  n.start(t);n.stop(t+0.25);o.start(t);o.stop(t+0.15);
+  // --- ノイズ層（スナッピー）---
+  const n=noiseSrc();
+  const bp=ctx.createBiquadFilter();bp.type="bandpass";bp.frequency.value=2800;bp.Q.value=0.7;
+  const hp=ctx.createBiquadFilter();hp.type="highpass";hp.frequency.value=1800;
+  const ng=vca(t,v*0.85,0.19,0.001);
+  n.connect(bp);bp.connect(hp);hp.connect(ng);ng.connect(masterGain);
+  n.start(t);n.stop(t+0.22);
+
+  // --- ボディ：低めのサイン波2本でチューニングのずれを作る ---
+  const o1=ctx.createOscillator();o1.type="sine";o1.frequency.value=185;
+  const o2=ctx.createOscillator();o2.type="sine";o2.frequency.value=230;
+  // ピッチを少し落とす（胴鳴りのドロップ）
+  o1.frequency.setValueAtTime(185,t);o1.frequency.exponentialRampToValueAtTime(100,t+0.06);
+  o2.frequency.setValueAtTime(230,t);o2.frequency.exponentialRampToValueAtTime(120,t+0.05);
+
+  // ウェーブシェーパーで軽く歪ませてパンチを出す
+  const ws=ctx.createWaveShaper();
+  const curve=new Float32Array(256);
+  for(let i=0;i<256;i++){const x=i/128-1;curve[i]=Math.tanh(x*2.2);}
+  ws.curve=curve;ws.oversample="2x";
+
+  const mix=ctx.createGain();mix.gain.value=1;
+  const g1=vca(t,v*0.55,0.14,0.001);
+  const g2=vca(t,v*0.35,0.10,0.001);
+  o1.connect(g1);g1.connect(ws);
+  o2.connect(g2);g2.connect(ws);
+  ws.connect(masterGain);
+  o1.start(t);o1.stop(t+0.18);
+  o2.start(t);o2.stop(t+0.14);
 }
 function clap(t,v){
   [0,0.011,0.022,0.04].forEach((d,i)=>{
