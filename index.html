@@ -125,11 +125,7 @@
 <body>
 <div class="muji-header">
   <span class="muji-brand">無意味良品</span>
-  <div class="decks" id="decks">
-    <div class="deck"><div class="dot"></div></div>
-    <div class="deck"><div class="dot"></div></div>
-  </div>
-  <span class="muji-ver">v1.6.0</span>
+  <span class="muji-ver">v1.6.2</span>
 </div>
 <div class="muji-title-wrap">
   <div class="muji-title">テクノシーケンサー</div>
@@ -435,13 +431,11 @@ function start(){
   barCount=0;
   playing=true;curStep=0;nextTime=ctx.currentTime+0.05;schedule();
   const p=document.getElementById("play");p.classList.add("on");p.textContent="STOP";
-  document.getElementById("decks").classList.add("spin");
 }
 function stop(){
   playing=false;autoMode=false;clearTimeout(timer);
   const p=document.getElementById("play");p.classList.remove("on");p.textContent="PLAY";
   const a=document.getElementById("autoplay");a.classList.remove("on");a.textContent="AUTO";
-  document.getElementById("decks").classList.remove("spin");
   document.querySelectorAll(".col-now").forEach(e=>e.classList.remove("col-now"));
 }
 function highlight(s){
