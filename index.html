@@ -48,6 +48,11 @@
     transition:background .12s,transform .05s;white-space:nowrap;}
   .play:active{transform:translateY(1px);}
   .play.on{background:var(--accent);}
+  .autoplay{font-size:11px;font-weight:800;letter-spacing:.18em;padding:9px 12px;
+    background:var(--white);color:var(--ink);border:1px solid var(--line);border-radius:1px;
+    transition:background .12s,transform .05s;white-space:nowrap;}
+  .autoplay:active{transform:translateY(1px);}
+  .autoplay.on{background:var(--accent);color:var(--paper);border-color:var(--accent2);}
   .field{display:flex;align-items:center;gap:6px;}
   .bpm b{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;
     min-width:38px;text-align:center;display:inline-block;}
@@ -119,7 +124,7 @@
     <div class="deck"><div class="dot"></div></div>
     <div class="deck"><div class="dot"></div></div>
   </div>
-  <span class="muji-ver">v1.5.0</span>
+  <span class="muji-ver">v1.6.0</span>
 </div>
 <div class="muji-title-wrap">
   <div class="muji-title">テクノシーケンサー</div>
@@ -130,6 +135,7 @@
 <div class="muji-desc">時間の流れをあえて16個の等間隔な余白に区切ることで、直感的に音の連なりを整えられる、簡素な音楽の道具に仕上げました。</div>
 <div class="transport">
   <button class="play" id="play">PLAY</button>
+  <button class="autoplay" id="autoplay">AUTO</button>
   <div class="field bpm">
     <button class="nudge" id="bpmdn">−</button>
     <div><b id="bpmval">135</b></div>
@@ -354,15 +360,30 @@ function acid2(t,v,pitchIdx,doSlide){
 
 let playing=false,curStep=0,nextTime=0,timer=null;
 let bpm=135,swing=0,masterVol=0.8;
+let autoMode=false,barCount=0;
 const LOOK=0.025,AHEAD=0.12;
+const AUTO_BARS=4; // 何小節ごとに切り替えるか
 function stepDur(){return 60/bpm/4;}
+
+function doRandom(){
+  tracks.forEach(t=>{
+    for(let s=0;s<STEPS;s++){
+      if(t.type==="kick")t.steps[s]=(s%4===0)?1:(Math.random()<.08?1:0);
+      else if(t.type==="hat")t.steps[s]=(s%2===0)?1:(Math.random()<.4?1:0);
+      else if(t.type==="snare"||t.type==="clap")t.steps[s]=(s%8===4)?1:(Math.random()<.06?1:0);
+      else if(t.type==="acid"||t.type==="acid2")t.steps[s]=Math.random()<.5?(1+Math.floor(Math.random()*5)):0;
+      else if(t.type==="ohat")t.steps[s]=(s%8===6)?1:0;
+    }
+  });
+  refresh();
+}
 
 function schedule(){
   while(nextTime<ctx.currentTime+AHEAD){
     const s=curStep;
     let when=nextTime;
     if(s%2===1)when+=stepDur()*(swing/100);
-    tracks.forEach((tr,ti)=>{
+    tracks.forEach((tr)=>{
       const val=tr.steps[s];if(!val)return;
       const prevS=(s+STEPS-1)%STEPS;
       const prevOn=!!tr.steps[prevS];
@@ -385,7 +406,13 @@ function schedule(){
     });
     const sHi=s;
     setTimeout(()=>highlight(sHi),(when-ctx.currentTime)*1000);
-    nextTime+=stepDur();curStep=(curStep+1)%STEPS;
+    nextTime+=stepDur();
+    curStep=(curStep+1)%STEPS;
+    // AUTO: STEPS×AUTO_BARSステップごとにランダム切り替え
+    if(autoMode && curStep===0){
+      barCount++;
+      if(barCount>=AUTO_BARS){barCount=0;setTimeout(doRandom,0);}
+    }
   }
   timer=setTimeout(schedule,LOOK*1000);
 }
@@ -400,13 +427,15 @@ function start(){
   ensureCtx();if(ctx.state==="suspended")ctx.resume();
   lastAcidFreq=null;lfoPhase1=0;lfoPhase2=0.7;lfoPhase3=1.4;
   lastAcid2Freq=null;lfo2Phase1=1.0;lfo2Phase2=2.1;lfo2Phase3=0.3;
+  barCount=0;
   playing=true;curStep=0;nextTime=ctx.currentTime+0.05;schedule();
   const p=document.getElementById("play");p.classList.add("on");p.textContent="STOP";
   document.getElementById("decks").classList.add("spin");
 }
 function stop(){
-  playing=false;clearTimeout(timer);
+  playing=false;autoMode=false;clearTimeout(timer);
   const p=document.getElementById("play");p.classList.remove("on");p.textContent="PLAY";
+  const a=document.getElementById("autoplay");a.classList.remove("on");a.textContent="AUTO";
   document.getElementById("decks").classList.remove("spin");
   document.querySelectorAll(".col-now").forEach(e=>e.classList.remove("col-now"));
 }
@@ -481,6 +510,12 @@ grid.addEventListener("input",e=>{
 
 // transport
 document.getElementById("play").addEventListener("click",()=>playing?stop():start());
+document.getElementById("autoplay").addEventListener("click",()=>{
+  autoMode=!autoMode;
+  const a=document.getElementById("autoplay");
+  a.classList.toggle("on",autoMode);
+  if(autoMode && !playing){doRandom();start();}
+});
 function setBpm(v){bpm=Math.max(40,Math.min(300,v));document.getElementById("bpmval").textContent=bpm;}
 document.getElementById("bpmup").onclick=()=>setBpm(bpm+1);
 document.getElementById("bpmdn").onclick=()=>setBpm(bpm-1);
@@ -497,18 +532,7 @@ const fileinput=document.getElementById("fileinput");
 
 // foot
 document.getElementById("clear").onclick=()=>{tracks.forEach(t=>t.steps.fill(0));refresh();};
-document.getElementById("rand").onclick=()=>{
-  tracks.forEach(t=>{
-    for(let s=0;s<STEPS;s++){
-      if(t.type==="kick")t.steps[s]=(s%4===0)?1:(Math.random()<.08?1:0);
-      else if(t.type==="hat")t.steps[s]=(s%2===0)?1:(Math.random()<.4?1:0);
-      else if(t.type==="snare"||t.type==="clap")t.steps[s]=(s%8===4)?1:(Math.random()<.06?1:0);
-      else if(t.type==="acid"||t.type==="acid2")t.steps[s]=Math.random()<.5?(1+Math.floor(Math.random()*5)):0;
-      else if(t.type==="ohat")t.steps[s]=(s%8===6)?1:0;
-    }
-  });
-  refresh();
-};
+document.getElementById("rand").onclick=doRandom;
 document.getElementById("export").onclick=()=>{
   const data={bpm,swing,acidAuto,acidWobble,acid2Auto,acid2Wobble,tracks:tracks.map(t=>({name:t.name,steps:t.steps,vol:t.vol}))};
   const a=document.createElement("a");
