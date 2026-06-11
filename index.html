@@ -74,20 +74,13 @@
   .tname{position:sticky;left:0;z-index:2;background:var(--white);
     min-width:88px;width:88px;padding:3px 7px;border-right:2px solid var(--line);
     vertical-align:middle;}
-  .tname .nm{font-size:10px;font-weight:800;letter-spacing:.04em;white-space:nowrap;
-    display:flex;align-items:center;justify-content:space-between;}
+  .tname .nm{font-size:10px;font-weight:800;letter-spacing:.04em;white-space:nowrap;}
   .tname .sub{font-size:7px;color:var(--sub);white-space:nowrap;}
-  .vol{width:100%;height:10px;margin-top:2px;display:none;}
-  .vol.open{display:block;}
-  /* acid-ctrl: 折りたたみ。open クラスで展開 */
-  .acid-ctrl{display:none;flex-direction:column;gap:3px;margin-top:2px;}
-  .acid-ctrl.open{display:flex;}
+  .vol{width:100%;height:10px;margin-top:2px;}
+  .acid-ctrl{display:flex;align-items:center;gap:4px;margin-top:2px;flex-wrap:wrap;}
   .acid-ctrl label{font-size:7px;color:var(--sub);display:flex;align-items:center;gap:3px;}
   .acid-ctrl input[type=checkbox]{accent-color:var(--accent);width:11px;height:11px;}
-  .acid-ctrl input[type=range]{width:60px;height:10px;}
-  .gear{font-size:9px;background:none;border:none;cursor:pointer;
-    color:var(--sub);padding:0;line-height:1;margin-left:2px;}
-  .gear.open{color:var(--accent);}
+  .acid-ctrl input[type=range]{width:56px;height:10px;}
   .cellrow td.cellcell{padding:2px;vertical-align:middle;}
   .cell{width:22px;height:22px;border-radius:1px;background:var(--card);
     border:1px solid var(--line2);display:block;margin:0 auto;position:relative;
@@ -452,23 +445,21 @@ function paint(){
   tracks.forEach((tr,ti)=>{
     const row=document.createElement("tr");row.className="cellrow";
     const name=document.createElement("td");name.className="tname";
-    const isAcid=tr.type==="acid"||tr.type==="acid2";
-    const gearBtn=isAcid?'<button class="gear" data-gear="'+ti+'">⚙</button>':'';
     const acidCtrl=tr.type==="acid"
-      ?'<div class="acid-ctrl" id="actrl'+ti+'">'+
+      ?'<div class="acid-ctrl">'+
         '<label><input type="checkbox" id="acidauto"'+(acidAuto?' checked':'')+'>AUTO</label>'+
         '<label>揺らぎ<input type="range" id="acidwob" min="0" max="100" value="'+Math.round(acidWobble*100)+'"></label>'+
         '</div>'
       :tr.type==="acid2"
-      ?'<div class="acid-ctrl" id="actrl'+ti+'">'+
+      ?'<div class="acid-ctrl">'+
         '<label><input type="checkbox" id="acid2auto"'+(acid2Auto?' checked':'')+'>AUTO</label>'+
         '<label>揺らぎ<input type="range" id="acid2wob" min="0" max="100" value="'+Math.round(acid2Wobble*100)+'"></label>'+
         '</div>'
       :'';
     name.innerHTML=
-      '<div class="nm">'+tr.name+gearBtn+'</div>'+
+      '<div class="nm">'+tr.name+'</div>'+
       '<div class="sub" id="sub'+ti+'">'+tr.sub+'</div>'+
-      '<input class="vol'+(isAcid?'':' open')+'" type="range" min="0" max="100" value="'+Math.round(tr.vol*100)+'" data-vol="'+ti+'">'+
+      '<input class="vol" type="range" min="0" max="100" value="'+Math.round(tr.vol*100)+'" data-vol="'+ti+'">'+
       acidCtrl;
     row.appendChild(name);
     for(let s=0;s<STEPS;s++){
@@ -479,19 +470,6 @@ function paint(){
       td.appendChild(c);row.appendChild(td);
     }
     grid.appendChild(row);
-  });
-  // gear toggle
-  grid.querySelectorAll(".gear").forEach(btn=>{
-    btn.addEventListener("click",e=>{
-      e.stopPropagation();
-      const ti=btn.dataset.gear;
-      const ctrl=document.getElementById("actrl"+ti);
-      const vol=btn.closest(".tname").querySelector(".vol");
-      if(!ctrl)return;
-      const isOpen=ctrl.classList.toggle("open");
-      if(vol)vol.classList.toggle("open",isOpen);
-      btn.classList.toggle("open",isOpen);
-    });
   });
   // bind acid controls
   const aa=document.getElementById("acidauto");
