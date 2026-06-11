@@ -551,12 +551,23 @@ grid.addEventListener("input",e=>{
 });
 
 // transport
-document.getElementById("play").addEventListener("click",()=>playing?stop():start());
+function showErr(e){
+  let d=document.getElementById("errmsg");
+  if(!d){d=document.createElement("div");d.id="errmsg";
+    d.style.cssText="position:fixed;bottom:60px;left:0;right:0;background:#8b1a22;color:#fff;font-size:11px;padding:8px 12px;z-index:999;word-break:break-all;";
+    document.body.appendChild(d);}
+  d.textContent="ERR: "+e;
+}
+document.getElementById("play").addEventListener("click",()=>{
+  try{ playing?stop():start(); }catch(e){ showErr(e); }
+});
 document.getElementById("autoplay").addEventListener("click",()=>{
-  autoMode=!autoMode;
-  const a=document.getElementById("autoplay");
-  a.classList.toggle("on",autoMode);
-  if(autoMode && !playing){doRandom();start();}
+  try{
+    autoMode=!autoMode;
+    const a=document.getElementById("autoplay");
+    a.classList.toggle("on",autoMode);
+    if(autoMode && !playing){doRandom();start();}
+  }catch(e){ showErr(e); }
 });
 function setBpm(v){bpm=Math.max(40,Math.min(300,v));document.getElementById("bpmval").textContent=bpm;}
 document.getElementById("bpmup").onclick=()=>setBpm(bpm+1);
