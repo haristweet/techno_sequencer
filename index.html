@@ -216,13 +216,27 @@ function getDistCurve(){
   for(let i=0;i<256;i++){const x=i/128-1;WS_DIST[i]=Math.tanh(x*6);}
   return WS_DIST;
 }
+// dist用WaveShaperをトラックごとに1個キャッシュ
+const distNodes={}; // ti -> WaveShaper
+function getDistNode(ti){
+  if(!distNodes[ti]){
+    const ws=ctx.createWaveShaper();
+    ws.curve=getDistCurve();ws.oversample="2x";
+    ws.connect(masterGain);
+    distNodes[ti]=ws;
+  }
+  return distNodes[ti];
+}
+function resetDistNodes(){
+  Object.keys(distNodes).forEach(k=>{
+    try{distNodes[k].disconnect();}catch(e){}
+    delete distNodes[k];
+  });
+}
 // dist オンなら WaveShaper → masterGain、オフなら直接
 function destFor(ti){
   if(!tracks[ti]||!tracks[ti].dist) return masterGain;
-  const ws=ctx.createWaveShaper();
-  ws.curve=getDistCurve();ws.oversample="2x";
-  ws.connect(masterGain);
-  return ws;
+  return getDistNode(ti);
 }
 
 // ノード群をstop後にまとめてdisconnectするヘルパー
@@ -449,6 +463,7 @@ function ensureCtx(){
 }
 function start(){
   ensureCtx();if(ctx.state==="suspended")ctx.resume();
+  resetDistNodes();
   lastAcidFreq=null;lfoPhase1=0;lfoPhase2=0.7;lfoPhase3=1.4;
   lastAcid2Freq=null;lfo2Phase1=1.0;lfo2Phase2=2.1;lfo2Phase3=0.3;
   barCount=0;
