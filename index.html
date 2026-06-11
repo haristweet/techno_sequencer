@@ -68,8 +68,8 @@
   .grid-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;
     border-top:1px solid var(--line);border-bottom:1px solid var(--line);
     background:var(--white);flex:1 1 0;min-height:0;}
-  table{border-collapse:collapse;width:100%;height:100%;}
-  tr{height:calc(100%/8);}
+  table{border-collapse:collapse;width:100%;}
+  tr{height:calc(100dvh / 12);}
   tr+tr .tname,tr+tr td{border-top:1px solid var(--line2);}
   .tname{position:sticky;left:0;z-index:2;background:var(--white);
     min-width:88px;width:88px;padding:3px 7px;border-right:2px solid var(--line);
@@ -77,9 +77,10 @@
   .tname .nm{font-size:10px;font-weight:800;letter-spacing:.04em;white-space:nowrap;
     display:flex;align-items:center;justify-content:space-between;}
   .tname .sub{font-size:7px;color:var(--sub);white-space:nowrap;}
-  .vol{width:100%;height:10px;margin-top:2px;}
+  .vol{width:100%;height:10px;margin-top:2px;display:none;}
+  .vol.open{display:block;}
   /* acid-ctrl: 折りたたみ。open クラスで展開 */
-  .acid-ctrl{display:none;flex-direction:column;gap:3px;margin-top:3px;}
+  .acid-ctrl{display:none;flex-direction:column;gap:3px;margin-top:2px;}
   .acid-ctrl.open{display:flex;}
   .acid-ctrl label{font-size:7px;color:var(--sub);display:flex;align-items:center;gap:3px;}
   .acid-ctrl input[type=checkbox]{accent-color:var(--accent);width:11px;height:11px;}
@@ -467,7 +468,7 @@ function paint(){
     name.innerHTML=
       '<div class="nm">'+tr.name+gearBtn+'</div>'+
       '<div class="sub" id="sub'+ti+'">'+tr.sub+'</div>'+
-      '<input class="vol" type="range" min="0" max="100" value="'+Math.round(tr.vol*100)+'" data-vol="'+ti+'">'+
+      '<input class="vol'+(isAcid?'':' open')+'" type="range" min="0" max="100" value="'+Math.round(tr.vol*100)+'" data-vol="'+ti+'">'+
       acidCtrl;
     row.appendChild(name);
     for(let s=0;s<STEPS;s++){
@@ -485,9 +486,11 @@ function paint(){
       e.stopPropagation();
       const ti=btn.dataset.gear;
       const ctrl=document.getElementById("actrl"+ti);
+      const vol=btn.closest(".tname").querySelector(".vol");
       if(!ctrl)return;
-      ctrl.classList.toggle("open");
-      btn.classList.toggle("open");
+      const isOpen=ctrl.classList.toggle("open");
+      if(vol)vol.classList.toggle("open",isOpen);
+      btn.classList.toggle("open",isOpen);
     });
   });
   // bind acid controls
