@@ -421,7 +421,7 @@ function schedule(){
     const s=curStep;
     let when=nextTime;
     if(s%2===1)when+=stepDur()*(swing/100);
-    tracks.forEach((tr)=>{
+    tracks.forEach((tr,ti)=>{
       const val=tr.steps[s];if(!val)return;
       const prevS=(s+STEPS-1)%STEPS;
       const prevOn=!!tr.steps[prevS];
