@@ -122,7 +122,7 @@
 <body>
 <div class="muji-header">
   <span class="muji-brand">無意味良品</span>
-  <span class="muji-ver">v1.7.2</span>
+  <span class="muji-ver">v1.8.0</span>
 </div>
 <div class="muji-title-wrap">
   <div class="muji-title">テクノシーケンサー</div>
@@ -452,15 +452,38 @@ function schedule(){
       if(barCount>=AUTO_BARS){barCount=0;setTimeout(doRandom,0);}
     }
   }
-  timer=setTimeout(schedule,LOOK*1000);
+  timer=setTimeout(()=>{timer=null;schedule();},LOOK*1000);
 }
 
 function ensureCtx(){
   if(!ctx){
     ctx=new AC();masterGain=ctx.createGain();
     masterGain.gain.value=masterVol;masterGain.connect(ctx.destination);
+    // iOS バックグラウンド対策: 無音バッファをループしてAudioContextをアクティブに保つ
+    const silentBuf=ctx.createBuffer(1,ctx.sampleRate,ctx.sampleRate);
+    const silent=ctx.createBufferSource();
+    silent.buffer=silentBuf;silent.loop=true;
+    silent.connect(ctx.destination);
+    silent.start(0);
   }
 }
+// 画面復帰時にAudioContextを再開
+document.addEventListener("visibilitychange",()=>{
+  if(!ctx||!playing)return;
+  if(document.visibilityState==="visible"){
+    ctx.resume().then(()=>{
+      // スケジューラが止まっていたら再起動
+      if(playing&&!timer){nextTime=ctx.currentTime+0.05;schedule();}
+    });
+  }
+});
+// iOS Safari: バックグラウンドから戻ったときのpageshowでも対応
+window.addEventListener("pageshow",()=>{
+  if(!ctx||!playing)return;
+  ctx.resume().then(()=>{
+    if(playing&&!timer){nextTime=ctx.currentTime+0.05;schedule();}
+  });
+});
 function start(){
   ensureCtx();if(ctx.state==="suspended")ctx.resume();
   resetDistNodes();
@@ -471,7 +494,7 @@ function start(){
   const p=document.getElementById("play");p.classList.add("on");p.textContent="STOP";
 }
 function stop(){
-  playing=false;autoMode=false;clearTimeout(timer);
+  playing=false;autoMode=false;clearTimeout(timer);timer=null;
   const p=document.getElementById("play");p.classList.remove("on");p.textContent="PLAY";
   const a=document.getElementById("autoplay");a.classList.remove("on");a.textContent="AUTO";
   document.querySelectorAll(".col-now").forEach(e=>e.classList.remove("col-now"));
