@@ -81,6 +81,9 @@
   .acid-ctrl label{font-size:7px;color:var(--sub);display:flex;align-items:center;gap:3px;}
   .acid-ctrl input[type=checkbox]{accent-color:var(--accent);width:11px;height:11px;}
   .acid-ctrl input[type=range]{width:56px;height:10px;}
+  .dist-ctrl{display:flex;align-items:center;gap:3px;margin-top:2px;}
+  .dist-ctrl label{font-size:7px;color:var(--sub);display:flex;align-items:center;gap:3px;}
+  .dist-ctrl input[type=checkbox]{accent-color:var(--accent);width:11px;height:11px;}
   .cellrow td.cellcell{padding:2px;vertical-align:middle;}
   .cell{width:22px;height:22px;border-radius:1px;background:var(--card);
     border:1px solid var(--line2);display:block;margin:0 auto;position:relative;
@@ -119,7 +122,7 @@
 <body>
 <div class="muji-header">
   <span class="muji-brand">無意味良品</span>
-  <span class="muji-ver">v1.6.5</span>
+  <span class="muji-ver">v1.7.0</span>
 </div>
 <div class="muji-title-wrap">
   <div class="muji-title">テクノシーケンサー</div>
@@ -169,13 +172,13 @@ let acid2Auto=true, acid2Wobble=0.6;
 let lastAcid2Freq=null;
 
 const tracks=[
-  {name:"KICK",  sub:"909",    type:"kick", vol:.9},
-  {name:"SNARE", sub:"clap'd", type:"snare",vol:.7},
-  {name:"CLAP",  sub:"808",    type:"clap", vol:.6},
-  {name:"HAT",   sub:"closed", type:"hat",  vol:.45},
-  {name:"OPEN",  sub:"open hh",type:"ohat", vol:.4},
-  {name:"ACID 1", sub:"303 A",  type:"acid", vol:.7},
-  {name:"ACID 2", sub:"303 B",  type:"acid2",vol:.6},
+  {name:"KICK",   sub:"909",    type:"kick", vol:.9, dist:false},
+  {name:"SNARE",  sub:"clap'd", type:"snare",vol:.7, dist:false},
+  {name:"CLAP",   sub:"808",    type:"clap", vol:.6, dist:false},
+  {name:"HAT",    sub:"closed", type:"hat",  vol:.45,dist:false},
+  {name:"OPEN",   sub:"open hh",type:"ohat", vol:.4, dist:false},
+  {name:"ACID 1", sub:"303 A",  type:"acid", vol:.7, dist:false},
+  {name:"ACID 2", sub:"303 B",  type:"acid2",vol:.6, dist:false},
 ];
 tracks.forEach(t=>{t.steps=new Array(STEPS).fill(0);});
 
@@ -194,7 +197,7 @@ function noiseBuf(){
 function noiseSrc(){const s=ctx.createBufferSource();s.buffer=NB||(NB=noiseBuf());s.loop=true;return s;}
 
 // WaveShaper curve キャッシュ
-let WS_KICK=null,WS_SNARE=null;
+let WS_KICK=null,WS_SNARE=null,WS_DIST=null;
 function getKickCurve(){
   if(WS_KICK)return WS_KICK;
   WS_KICK=new Float32Array(256);
@@ -207,13 +210,28 @@ function getSnareCurve(){
   for(let i=0;i<256;i++){const x=i/128-1;WS_SNARE[i]=Math.tanh(x*2.2);}
   return WS_SNARE;
 }
+function getDistCurve(){
+  if(WS_DIST)return WS_DIST;
+  WS_DIST=new Float32Array(256);
+  for(let i=0;i<256;i++){const x=i/128-1;WS_DIST[i]=Math.tanh(x*6);}
+  return WS_DIST;
+}
+// dist オンなら WaveShaper → masterGain、オフなら直接
+function destFor(ti){
+  if(!tracks[ti]||!tracks[ti].dist) return masterGain;
+  const ws=ctx.createWaveShaper();
+  ws.curve=getDistCurve();ws.oversample="2x";
+  ws.connect(masterGain);
+  return ws;
+}
 
 // ノード群をstop後にまとめてdisconnectするヘルパー
 function autoDisconnect(src, stopTime, nodes){
   src.onended=()=>{ nodes.forEach(n=>{try{n.disconnect();}catch(e){}}); };
 }
 
-function kick(t,v){
+function kick(t,v,ti){
+  const dst=destFor(ti);
   const o=ctx.createOscillator(); o.type="triangle";
   o.frequency.setValueAtTime(160,t);
   o.frequency.exponentialRampToValueAtTime(45,t+0.13);
@@ -223,26 +241,27 @@ function kick(t,v){
   const n=noiseSrc();
   const nhp=ctx.createBiquadFilter();nhp.type="highpass";nhp.frequency.value=3000;
   const ng=vca(t,v*0.25,0.025,0.0005);
-  n.connect(nhp);nhp.connect(ng);ng.connect(masterGain);
+  n.connect(nhp);nhp.connect(ng);ng.connect(dst);
   n.start(t);n.stop(t+0.04);
   autoDisconnect(n,t+0.04,[n,nhp,ng]);
   const ws=ctx.createWaveShaper(); ws.curve=getKickCurve(); ws.oversample="2x";
   const g=vca(t,v,0.44,0.001);
   const gs=vca(t,v*0.6,0.38,0.001);
-  o.connect(ws);ws.connect(g);g.connect(masterGain);
-  sub.connect(gs);gs.connect(masterGain);
+  o.connect(ws);ws.connect(g);g.connect(dst);
+  sub.connect(gs);gs.connect(dst);
   o.start(t);o.stop(t+0.48);
   sub.start(t);sub.stop(t+0.42);
   autoDisconnect(o,t+0.48,[o,ws,g]);
   autoDisconnect(sub,t+0.42,[sub,gs]);
 }
 
-function snare(t,v){
+function snare(t,v,ti){
+  const dst=destFor(ti);
   const n=noiseSrc();
   const bp=ctx.createBiquadFilter();bp.type="bandpass";bp.frequency.value=2800;bp.Q.value=0.7;
   const hp=ctx.createBiquadFilter();hp.type="highpass";hp.frequency.value=1800;
   const ng=vca(t,v*0.85,0.19,0.001);
-  n.connect(bp);bp.connect(hp);hp.connect(ng);ng.connect(masterGain);
+  n.connect(bp);bp.connect(hp);hp.connect(ng);ng.connect(dst);
   n.start(t);n.stop(t+0.22);
   autoDisconnect(n,t+0.22,[n,bp,hp,ng]);
   const o1=ctx.createOscillator();o1.type="sine";
@@ -254,28 +273,30 @@ function snare(t,v){
   const g2=vca(t,v*0.35,0.10,0.001);
   o1.connect(g1);g1.connect(ws);
   o2.connect(g2);g2.connect(ws);
-  ws.connect(masterGain);
+  ws.connect(dst);
   o1.start(t);o1.stop(t+0.18);
   o2.start(t);o2.stop(t+0.14);
   autoDisconnect(o1,t+0.18,[o1,g1]);
   autoDisconnect(o2,t+0.14,[o2,g2,ws]);
 }
 
-function clap(t,v){
+function clap(t,v,ti){
+  const dst=destFor(ti);
   [0,0.011,0.022,0.04].forEach((d,i)=>{
     const n=noiseSrc(),bp=ctx.createBiquadFilter();bp.type="bandpass";bp.frequency.value=1100;bp.Q.value=1.4;
     const g=vca(t+d,v*(i==3?.9:.6),i==3?.18:.05);
-    n.connect(bp);bp.connect(g);g.connect(masterGain);
+    n.connect(bp);bp.connect(g);g.connect(dst);
     n.start(t+d);n.stop(t+d+0.2);
     autoDisconnect(n,t+d+0.2,[n,bp,g]);
   });
 }
 
-function hat(t,v,open){
+function hat(t,v,open,ti){
+  const dst=destFor(ti);
   const dur=open?.4:.1;
   const n=noiseSrc(),hp=ctx.createBiquadFilter();hp.type="highpass";hp.frequency.value=7000;
   const g=vca(t,v,open?.35:.06);
-  n.connect(hp);hp.connect(g);g.connect(masterGain);
+  n.connect(hp);hp.connect(g);g.connect(dst);
   n.start(t);n.stop(t+dur);
   autoDisconnect(n,t+dur,[n,hp,g]);
 }
@@ -284,7 +305,8 @@ function hat(t,v,open){
 // LFO state (accumulated phase, updated per note)
 let lfoPhase1=0, lfoPhase2=0.7, lfoPhase3=1.4;
 
-function acid(t,v,pitchIdx,doSlide){
+function acid(t,v,pitchIdx,doSlide,ti){
+  const dst=destFor(ti);
   const semis=SCALE[(pitchIdx-1)%SCALE.length];
   const freq=110*Math.pow(2,semis/12);
 
@@ -321,14 +343,15 @@ function acid(t,v,pitchIdx,doSlide){
   f.frequency.exponentialRampToValueAtTime(Math.max(80,cutoffBase*0.15),t+0.18+wob*0.12);
 
   const g=vca(t,v,0.28+wob*0.08,0.004);
-  o.connect(f);f.connect(g);g.connect(masterGain);o.start(t);o.stop(t+0.38);
+  o.connect(f);f.connect(g);g.connect(dst);o.start(t);o.stop(t+0.38);
   autoDisconnect(o,t+0.38,[o,f,g]);
 }
 
 // ACID 2: 少しオクターブ上で違うLFO位相で鳴らす
 let lfo2Phase1=1.0, lfo2Phase2=2.1, lfo2Phase3=0.3;
 
-function acid2(t,v,pitchIdx,doSlide){
+function acid2(t,v,pitchIdx,doSlide,ti){
+  const dst=destFor(ti);
   const semis=SCALE[(pitchIdx-1)%SCALE.length]+12; // 1オクターブ上
   const freq=110*Math.pow(2,semis/12);
   const sd=stepDur();
@@ -355,7 +378,7 @@ function acid2(t,v,pitchIdx,doSlide){
   f.frequency.exponentialRampToValueAtTime(Math.max(80,cutoffBase+envDepth),t+0.003);
   f.frequency.exponentialRampToValueAtTime(Math.max(80,cutoffBase*0.15),t+0.16+wob*0.1);
   const g=vca(t,v,0.24+wob*0.06,0.004);
-  o.connect(f);f.connect(g);g.connect(masterGain);o.start(t);o.stop(t+0.32);
+  o.connect(f);f.connect(g);g.connect(dst);o.start(t);o.stop(t+0.32);
   autoDisconnect(o,t+0.32,[o,f,g]);
 }
 
@@ -390,18 +413,18 @@ function schedule(){
       const prevOn=!!tr.steps[prevS];
       if(tr.type==="acid"){
         const doSlide=acidAuto && prevOn && Math.random()<(0.4+acidWobble*0.5);
-        acid(when,tr.vol,val,doSlide);
+        acid(when,tr.vol,val,doSlide,ti);
       } else if(tr.type==="acid2"){
         const doSlide=acid2Auto && prevOn && Math.random()<(0.4+acid2Wobble*0.5);
-        acid2(when,tr.vol,val,doSlide);
+        acid2(when,tr.vol,val,doSlide,ti);
       } else {
         const v=tr.vol;
         switch(tr.type){
-          case"kick":kick(when,v);break;
-          case"snare":snare(when,v);break;
-          case"clap":clap(when,v);break;
-          case"hat":hat(when,v,false);break;
-          case"ohat":hat(when,v,true);break;
+          case"kick":kick(when,v,ti);break;
+          case"snare":snare(when,v,ti);break;
+          case"clap":clap(when,v,ti);break;
+          case"hat":hat(when,v,false,ti);break;
+          case"ohat":hat(when,v,true,ti);break;
         }
       }
     });
@@ -466,6 +489,7 @@ function paint(){
       '<div class="nm">'+tr.name+'</div>'+
       '<div class="sub" id="sub'+ti+'">'+tr.sub+'</div>'+
       '<input class="vol" type="range" min="0" max="100" value="'+Math.round(tr.vol*100)+'" data-vol="'+ti+'">'+
+      '<div class="dist-ctrl"><label><input type="checkbox" data-dist="'+ti+'"'+(tr.dist?' checked':'')+'>DIST</label></div>'+
       acidCtrl;
     row.appendChild(name);
     for(let s=0;s<STEPS;s++){
@@ -476,6 +500,10 @@ function paint(){
       td.appendChild(c);row.appendChild(td);
     }
     grid.appendChild(row);
+  });
+  // bind dist controls
+  grid.querySelectorAll("[data-dist]").forEach(cb=>{
+    cb.addEventListener("change",e=>{tracks[+e.target.dataset.dist].dist=e.target.checked;});
   });
   // bind acid controls
   const aa=document.getElementById("acidauto");
